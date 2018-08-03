@@ -1,0 +1,147 @@
+/*Initial query used to pull data from MISArchive to get data from VISA system to use in later queries for Cage inventory
+Date create 7-23-2018
+Date Modified 8-2-2018*/
+
+database	MISA_PROD_VIEW_DB;
+
+/*Create a table that stores the query and creates a max count for all AWBs*/
+
+Create multiset volatile Table VT_CageAgg as (
+SELECT P1."AWB_NBR" AS "AWB_NBR",  
+  P1."SHIPMENT_STATUS_CD" AS "SHIPMENTSTATUSCD",
+  P1."SHIPMENT_CONTROLLABLE_FLG" AS "SHIPMENTCONTROLLABLEFLG",
+ P1."AUTOMATION_FLG" AS "AUTOMATIONFLG",   
+ 	 P1."SERVICE_BASE_CD" AS "SERVICEBASECD",
+   P1."PUP_EMPLOYEE_NBR" AS "PUPEMPLOYEENBR",   
+   P1."SHIPPER_ACCOUNT_NBR" AS "SHIPPERACCOUNTNBR",
+   P1."SHIPPER_NM" AS "SHIPPERNM",   
+   P1."CONSIGNEE_ACCOUNT_NBR" AS "CONSIGNEEACCOUNTNBR",
+   P1."CONSIGNEE_NM" AS "CONSIGNEENM",    
+   P1."COMMODITY_DESC" AS "COMMODITYDESC",
+   P1."TOTAL_PIECE_QTY" AS "TOTALPIECEQTY",   
+   P1."CUSTOMS_VALUE_AMT" AS "CUSTOMSVALUEAMT",
+   P1."KEYED_CURRENCY_CD" AS "KEYEDCURRENCYCD",   
+   P1."TOTAL_WGT" AS "TOTALWGT",
+   P1."WGT_TYPE_CD" AS "WGTTYPECD",   
+ --  P1."RELEASE_CD" AS "CAGE_RELEASE_CD",
+   C3."CAGE_REASON_CD" AS "CAGEREASONCD",
+   --Max(C3."CAGE_REASON_CD") OVER (
+ --  Partition by P1."AWB_NBR" Order By P1."AWB_NBR",C3."CAGE_REASON_CD" Rows between 1 following AND 1 following) AS Prev_CAGEREASON,
+   --COunt(*) Over (Partition By P1."AWB_NBR") AS MAX_AWBNBR,
+   C3."CONTROLLABLE_BY_CD" AS "CONTROLLABLEBYCD",
+   C3."OWNERSHIP_BUCKET_CD" AS "OWNERSHIPBUCKETCD",
+   C3."MONEY_BACK_GUAR_EXCUSED_FLG" AS "MONEYBACKGUAREXCUSEDFLG",
+   C3."COS2_CATEGORY_CD" AS "COS2CATEGORYCD",
+   C3."COS2_CAUSE_CD" AS "COS2CAUSECD",
+   T2."DATE_DT" AS "PUP_DATE",
+   T3."DATE_DT" AS "CAGED_DATED",
+   T4."DATE_DT" AS "RELEASE_DATE",
+  D2."Division_NM" AS "Dest_Division",
+   D2."REGION_NM" AS "DestREGIONNM",
+   D2."DISTRICT_NM" AS "DestDISTRICTNM",
+   D2."COUNTRY_CD" AS "DestCountryCD",
+   D2."LOCATION_CD" AS "DestLocationCD",
+
+--D1."REGION_NM" as "Origin_Region",
+   D1."Division_NM" AS "OriginDivision",
+   D1."REGION_NM" AS "OriginREGIONNM",
+   D1."DISTRICT_NM" AS "OriginDISTRICTNM",
+   D1."COUNTRY_CD" AS "OriginCountryCD2",
+   D1."LOCATION_CD" AS "OriginLocationCD",
+   C6."COUNTRY_CD" AS "VISAOriginCountryCD",
+   C7."COUNTRY_CD" AS "VISADestCountryCD",
+   L4."LOCATION_CD" AS "PUPOriginLocationCD",
+   L5."LOCATION_CD" AS "PUPDestLocationCD",
+   L6."LOCATION_CD" AS "VisaORIGINLocationCD",       
+   L7."LOCATION_CD" AS "VisaDestLocationCD" ,                 
+   L8."LOCATION_CD" AS "CageLocationCD",  
+   P1."SHIPMENT_DWELL_DAYS_QTY" AS "ShipmentDwellDaysQty"  
+     
+FROM	
+  "PMCAGE_SHIPMENT_SVC_TYPE_FACT" P1,
+  "PMCAGE_SHIPMENT_REASON" P2, 
+  "CAGE_REASON_DIM" C3,
+  "LSSI_LOCATION_DIM" D2,
+  "LSSI_LOCATION_DIM" D1,
+  "LSSI_LOCATION_DIM" L4,
+  "LSSI_LOCATION_DIM" L5, 
+  "LOCATION_DIM" L6,        
+  "LOCATION_DIM" L7,   
+  "LOCATION_DIM" L8,      
+  "COUNTRY_DIM" C6,
+  "COUNTRY_DIM" C7,
+  "TIME_DIM" T2,
+  "TIME_DIM" T3, 
+  "TIME_DIM" T4
+   --qualify row_number() over (partition by AWB_NBR order by AWB_NBR) = 1  
+WHERE	
+  P2."AIRBILL_WNBR" = P1."AIRBILL_WNBR"
+  AND  P2."CAGE_REASON_WNBR"= C3."PM_PRIMARYKEY"
+  AND  P1."CAGED_DT_WNBR"=T3."TIME_WNBR" 
+  AND  T2.TIME_WNBR=P1.PUP_DATE_WNBR 
+  AND P1."RELEASE_DATE_WNBR"=T4."TIME_WNBR"  
+  AND P1."CAGE_LOCATION_WNBR"=L8."PM_PRIMARYKEY " 
+  AND P1."CAGE_LSSI_LOCATION_WNBR" = D2."PM_PRIMARYKEY"
+  AND P1."PUP_ORIGIN_LSSI_LOCATION_WNBR" = D1."PM_PRIMARYKEY"
+  AND P1."DEST_COUNTRY_WNBR"=C7."PM_PRIMARYKEY" 
+  AND P1."ORIGIN_COUNTRY_WNBR"=C6."PM_PRIMARYKEY " 
+  AND P1."PUP_DEST_LSSI_LOCATION_WNBR"=L5."PM_PRIMARYKEY" 
+  AND P1."PUP_ORIGIN_LSSI_LOCATION_WNBR"=L4."PM_PRIMARYKEY"
+  AND P1."MDE_DEST_LOCATION_WNBR"=L7."PM_PRIMARYKEY " 
+  AND P1."MDE_ORIGIN_LOCATION_WNBR"=L6."PM_PRIMARYKEY"
+  --AND C3."CAGE_REASON_CD" <>'CPW' 
+ -- AND C3."CAGE_REASON_CD" <>'CAG'
+  --AND D2."Division_NM" ='US'
+  AND  D2."Division_NM" not in('APAC','MEISA','EU','LAC','CA')
+  AND  D1."Division_NM" in('APAC','MEISA','EU','LAC','CA')
+  AND  C3."PM_CURRENT_FLAG"= 1
+--AND  L8."LOCATION_CD" = 'MEM' /*Be sure to remove this where condition such that it includes all MAWBs that are in the Cage and then filter for Port */
+-- AND t4.Date_DT = Date '1900-01-01' /*This will be removed because it is currently not known to be the POD date*/
+  AND  T3.DATE_DT BETWEEN DATE '2016-08-02'  --Date range is set to check for two years of Cages, similar to what Kirk reports. Rio reports only 1 year of information for MEM port
+  AND   DATE '2018-08-02') with data on commit preserve rows;
+
+ 
+  
+  /*Group concatenate Cage reasons by AWB;*/
+ create multiset volatile table MYRECS as( 
+ WITH RECURSIVE MYREC(AWB_NBR,CAGEREASONCD,LVL)
+ AS
+ (
+--Seed Query
+ SELECT  AWB_NBR,MIN(CAGEREASONCD(VARCHAR(1000))) AS CAGEREASONCD,1
+ FROM VT_CageAgg a
+GROUP BY 1
+
+ UNION ALL
+--RECURSIVE Join
+
+ SELECT b.AWB_NBR,trim(a.CAGEREASONCD) || ',' || trim( b.CAGEREASONCD), LVL+1
+ FROM VT_CageAgg a INNER JOIN MYREC b
+ ON a.AWB_NBR = b.AWB_NBR
+ AND a.CAGEREASONCD > b.CAGEREASONCD
+
+ )
+ SELECT AWB_NBR,CAGEREASONCD,LVL
+ FROM MYREC
+ QUALIFY RANK() OVER(PARTITION BY AWB_NBR ORDER BY CAGEREASONCD DESC) = 1
+--Filter to get only the last concatenated row
+ ) with data on commit preserve rows;
+ 
+ 
+ /*Create final output table that will be exported*/
+ 
+ Create multiset volatile table MergedCageAggs as(
+ Select a.AWB_NBR as AWBNBR,a.SHIPMENTSTATUSCD,a.SHIPMENTCONTROLLABLEFLG,a.AUTOMATIONFLG,a.SERVICEBASECD,a.PUPEMPLOYEENBR,a.SHIPPERACCOUNTNBR,a.SHIPPERNM,
+ a.CONSIGNEEACCOUNTNBR,a.CONSIGNEENM,a.COMMODITYDESC,a.TOTALPIECEQTY,a.CUSTOMSVALUEAMT,a.KEYEDCURRENCYCD,a.TOTALWGT,a.WGTTYPECD, m.CAGEREASONCD,m.LVL as NUMBEROFCAGECDS,a.CONTROLLABLEBYCD,a.OWNERSHIPBUCKETCD,
+ a.MONEYBACKGUAREXCUSEDFLG,a.COS2CATEGORYCD,a.COS2CAUSECD,a.PUP_DATE,a.CAGED_DATED,a.RELEASE_DATE,a.Dest_Division,a.DestREGIONNM,a.DestDISTRICTNM,a.DestCountryCD,a.DestLocationCD,a.OriginDivision,a.OriginREGIONNM,
+ a.OriginDISTRICTNM,a.OriginCountryCD2,a.OriginLocationCD,a.VISAOriginCountryCD,a.VISADestCountryCD,a.PUPOriginLocationCD,a.PUPDestLocationCD,a.VisaORIGINLocationCD,a.VisaDestLocationCD,a.CageLocationCD,a.ShipmentDwellDaysQty          
+ from VT_CageAgg a right outer join MYRECS m on a.AWB_NBR=m.AWB_NBR qualify row_number() over (partition by AWBNBR order by AWBNBR) = 1 
+ ) with data on commit preserve rows;
+ 
+ Select * from MergedCageAggs;
+ 
+ /*empty tables after exporting data for reuse*/
+ 
+drop table VT_CageAgg;
+drop table MYRECS;
+drop table MergedCageAggs;
